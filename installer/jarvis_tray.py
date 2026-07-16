@@ -19,6 +19,26 @@ import subprocess
 import webbrowser
 from pathlib import Path
 
+# --- PyInstaller belt & suspenders ---------------------------------------
+# setup_wizard.py is bundled as a *data file* (not analyzed statically), so we
+# import here everything it needs — hiddenimports in the .spec is layer 1,
+# these explicit imports are layer 2 so nothing gets tree-shaken out.
+try:
+    import tkinter  # noqa: F401
+    import tkinter.ttk  # noqa: F401
+    import tkinter.messagebox  # noqa: F401
+    import tkinter.filedialog  # noqa: F401
+    import tkinter.simpledialog  # noqa: F401
+    import tkinter.font  # noqa: F401
+except Exception:
+    pass
+try:
+    import requests  # noqa: F401
+    import websockets  # noqa: F401
+    import httpx  # noqa: F401
+except Exception:
+    pass
+
 
 def _resource_root() -> Path:
     """Where bundled resources live (works dev + PyInstaller frozen)."""

@@ -27,7 +27,11 @@ a = Analysis(
     hiddenimports=[
         'websockets', 'httpx', 'requests', 'pyautogui', 'psutil', 'docx',
         'playwright', 'playwright.async_api', 'PIL', 'PIL._imagingtk',
-        'pystray', 'pystray._win32', 'tkinter', 'tkinter.ttk',
+        'pystray', 'pystray._win32',
+        'tkinter', 'tkinter.ttk', 'tkinter.messagebox',
+        'tkinter.filedialog', 'tkinter.simpledialog', 'tkinter.font',
+        'tkinter.scrolledtext', 'tkinter.commondialog', 'tkinter.dialog',
+        '_tkinter',
     ],
     hookspath=[],
     hooksconfig={},
