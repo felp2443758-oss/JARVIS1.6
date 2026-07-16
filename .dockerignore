@@ -1,0 +1,37 @@
+# Files/folders excluded from the Docker build context
+# (keeps image small and prevents Railway from getting confused)
+
+frontend/
+installer/
+edge_agent/
+extension/
+release/
+memory/
+tests/
+test_reports/
+
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.mypy_cache/
+**/node_modules/
+**/.venv/
+**/venv/
+**/env/
+
+.git/
+.gitignore
+.gitattributes
+.github/
+.env
+backend/.env
+frontend/.env
+
+*.md
+!README.md
+
+.DS_Store
+Thumbs.db
+*.log

@@ -141,9 +141,10 @@ Section "Atalho na Area de Trabalho" SEC_DESKTOP
   CreateShortCut "$DESKTOP\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}"
 SectionEnd
 
-Section "Iniciar com o Windows" SEC_AUTOSTART
+Section "Iniciar com o Windows (recomendado)" SEC_AUTOSTART
+  ; Boot silencioso: so o tray + agent. Dashboard so abre quando usuario clicar.
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${APP_ID}" \
-    "$\"$INSTDIR\${APP_EXE}$\""
+    "$\"$INSTDIR\${APP_EXE}$\" --tray-only"
 SectionEnd
 
 Section "Uninstall"
