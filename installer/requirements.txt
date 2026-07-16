@@ -1,0 +1,6 @@
+# JARVIS Windows installer requirements
+pystray>=0.19.5
+pillow>=10.0.0
+requests>=2.31.0
+# PyInstaller (for building the .exe distributable)
+pyinstaller>=6.3.0

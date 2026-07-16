@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>J.A.R.V.I.S. Autofill</title>
+  <style>
+    :root {
+      --bg: #02060d;
+      --card: #061021;
+      --border: #0e2a4a;
+      --cyan: #22d3ee;
+      --cyan-2: #67e8f9;
+      --text: #cffafe;
+      --muted: #7c94ad;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      width: 320px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
+    h1 {
+      font-size: 15px;
+      margin: 0 0 4px;
+      color: var(--cyan-2);
+      letter-spacing: 0.08em;
+    }
+    .sub { color: var(--muted); font-size: 11px; margin-bottom: 14px; }
+    label { display: block; font-size: 11px; color: var(--cyan); margin: 10px 0 4px; }
+    input {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+    }
+    input:focus { border-color: var(--cyan); }
+    .row { display: flex; gap: 8px; margin-top: 14px; }
+    button {
+      flex: 1;
+      padding: 9px 10px;
+      background: var(--card);
+      color: var(--cyan-2);
+      border: 1px solid var(--cyan);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    button.primary { background: var(--cyan); color: #02060d; }
+    button:hover { filter: brightness(1.15); }
+    .status {
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--muted);
+      min-height: 16px;
+    }
+    .status.ok { color: #34d399; }
+    .status.err { color: #f87171; }
+    ul.sites {
+      list-style: none;
+      padding: 0;
+      margin: 10px 0 0;
+      max-height: 120px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    ul.sites li {
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+    }
+    ul.sites li:last-child { border-bottom: none; }
+    ul.sites li:hover { background: var(--card); color: var(--cyan-2); }
+  </style>
+</head>
+<body>
+  <h1>J.A.R.V.I.S. AUTOFILL</h1>
+  <div class="sub">Cofre remoto AES-GCM · v1.0.0</div>
+
+  <label>URL do backend</label>
+  <input id="brainUrl" placeholder="https://...preview.emergentagent.com" />
+
+  <label>Token JWT (Dashboard → Operador Remoto)</label>
+  <input id="token" type="password" placeholder="cole seu JWT aqui" />
+
+  <div class="row">
+    <button id="save">Salvar</button>
+    <button id="fill" class="primary">Preencher esta página</button>
+  </div>
+
+  <div class="row">
+    <button id="list">Listar cofre</button>
+  </div>
+
+  <ul id="sites" class="sites" hidden></ul>
+
+  <div id="status" class="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+# -*- mode: python ; coding: utf-8 -*-
+# PyInstaller spec for J.A.R.V.I.S. — PORTABLE single-file build.
+# Produces `dist/JARVIS-Desktop-1.0.0-portable.exe`.
+import os
+from pathlib import Path
+
+HERE = Path.cwd()  # installer/
+ROOT = HERE.parent
+
+agent_dir = str(ROOT / 'edge_agent')
+
+a = Analysis(
+    ['jarvis_tray.py'],
+    pathex=[str(HERE), agent_dir],
+    binaries=[],
+    datas=[
+        (str(ROOT / 'edge_agent' / 'agent_v2.py'), 'edge_agent'),
+        (str(ROOT / 'edge_agent' / 'actions_v2.py'), 'edge_agent'),
+        (str(ROOT / 'edge_agent' / 'browser_manager.py'), 'edge_agent'),
+        (str(ROOT / 'edge_agent' / 'command_handler.py'), 'edge_agent'),
+        (str(ROOT / 'edge_agent' / 'vault_client.py'), 'edge_agent'),
+        (str(ROOT / 'edge_agent' / 'pair.py'), 'edge_agent'),
+        (str(HERE / 'setup_wizard.py'), '.'),
+    ],
+    hiddenimports=[
+        'websockets', 'httpx', 'requests', 'pyautogui', 'psutil', 'docx',
+        'playwright', 'playwright.async_api', 'PIL', 'PIL._imagingtk',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='JARVIS-Desktop-1.0.0-portable',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=None,
+)
