@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for J.A.R.V.I.S. Windows installer.
-# Produces a `dist/JARVIS/` folder with `JARVIS.exe` (tray) and everything it needs.
+# PyInstaller spec for J.A.R.V.I.S. Windows installer (folder build).
+# Produces `dist/JARVIS/JARVIS.exe` with everything it needs.
 import os
 from pathlib import Path
 
@@ -20,6 +20,7 @@ a = Analysis(
         (str(ROOT / 'edge_agent' / 'command_handler.py'), 'edge_agent'),
         (str(ROOT / 'edge_agent' / 'vault_client.py'), 'edge_agent'),
         (str(ROOT / 'edge_agent' / 'pair.py'), 'edge_agent'),
+        (str(HERE / 'desktop_app.py'), '.'),
         (str(HERE / 'setup_wizard.py'), '.'),
         (str(HERE / 'resources' / 'jarvis.png'), 'resources'),
         (str(HERE / 'resources' / 'jarvis.ico'), 'resources'),
@@ -32,6 +33,12 @@ a = Analysis(
         'tkinter.filedialog', 'tkinter.simpledialog', 'tkinter.font',
         'tkinter.scrolledtext', 'tkinter.commondialog', 'tkinter.dialog',
         '_tkinter',
+        # pywebview + Edge WebView2
+        'webview', 'webview.platforms', 'webview.platforms.edgechromium',
+        'webview.platforms.mshtml', 'webview.platforms.winforms',
+        'clr_loader', 'pythonnet',
+        # stdlib bits used by desktop_app
+        'http.server', 'socketserver', 'urllib.parse',
     ],
     hookspath=[],
     hooksconfig={},
@@ -51,7 +58,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,       # tray app, no console
+    console=False,       # tray/GUI app, no console
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

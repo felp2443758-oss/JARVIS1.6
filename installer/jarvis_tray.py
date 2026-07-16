@@ -1,13 +1,13 @@
-"""J.A.R.V.I.S. — System tray icon (Windows).
+"""J.A.R.V.I.S. Desktop — entry point EXE.
 
-Single-entry-point EXE with argv routing to avoid the PyInstaller fork-bomb
-(sys.executable IS the frozen JARVIS.exe, so subprocess.Popen re-runs the whole
-app; without argv dispatch every spawn recurses forever).
+Modes dispatched by argv (avoids the PyInstaller fork bomb — sys.executable IS
+the frozen JARVIS.exe, so subprocess.Popen(sys.executable) re-runs the whole
+app; without argv dispatch every spawn recurses forever):
 
-Modes:
-  JARVIS.exe                 → tray icon (default)
-  JARVIS.exe --wizard        → runs setup_wizard in-process
-  JARVIS.exe --agent         → runs edge_agent/agent_v2.py in-process
+  JARVIS.exe                 -> full desktop app (login + embedded dashboard) + tray
+  JARVIS.exe --agent         -> runs edge_agent/agent_v2.py in this process
+  JARVIS.exe --tray-only     -> tray icon only (used internally)
+  JARVIS.exe --dashboard     -> reopens the embedded dashboard window
 """
 from __future__ import annotations
 import os
@@ -16,13 +16,11 @@ import json
 import time
 import runpy
 import subprocess
+import threading
 import webbrowser
 from pathlib import Path
 
-# --- PyInstaller belt & suspenders ---------------------------------------
-# setup_wizard.py is bundled as a *data file* (not analyzed statically), so we
-# import here everything it needs — hiddenimports in the .spec is layer 1,
-# these explicit imports are layer 2 so nothing gets tree-shaken out.
+# --- PyInstaller belt & suspenders: force-include GUI/net deps -----------
 try:
     import tkinter  # noqa: F401
     import tkinter.ttk  # noqa: F401
@@ -36,6 +34,10 @@ try:
     import requests  # noqa: F401
     import websockets  # noqa: F401
     import httpx  # noqa: F401
+except Exception:
+    pass
+try:
+    import webview  # noqa: F401  # pywebview
 except Exception:
     pass
 
@@ -55,55 +57,51 @@ LOCK_PATH = JARVIS_HOME / "tray.lock"
 
 RES = _resource_root()
 AGENT_PY = RES / "edge_agent" / "agent_v2.py"
-WIZARD_PY = RES / "setup_wizard.py"
+DESKTOP_APP_PY = RES / "desktop_app.py"
 
 
-# ---------------------------------------------------------------------------
-# Modes dispatched by argv (avoid fork bomb when frozen)
-# ---------------------------------------------------------------------------
-def run_wizard_inproc():
-    """Runs setup_wizard.py in the current process (blocks until closed)."""
-    wiz = WIZARD_PY
-    if not wiz.exists():
-        # dev fallback
-        wiz = Path(__file__).resolve().parent / "setup_wizard.py"
-    sys.path.insert(0, str(wiz.parent))
-    runpy.run_path(str(wiz), run_name="__main__")
-
-
+# ==========================================================================
+# argv-dispatched modes (no subprocess -> no fork bomb)
+# ==========================================================================
 def run_agent_inproc():
     """Runs edge_agent/agent_v2.py in the current process (blocking)."""
     agent = AGENT_PY
     if not agent.exists():
         agent = Path(__file__).resolve().parent.parent / "edge_agent" / "agent_v2.py"
-    # Make sure edge_agent siblings (actions_v2, browser_manager, etc.) resolve
     sys.path.insert(0, str(agent.parent))
     runpy.run_path(str(agent), run_name="__main__")
 
 
-# ---------------------------------------------------------------------------
-# Tray mode
-# ---------------------------------------------------------------------------
+def run_desktop_inproc():
+    """Runs desktop_app.py in the current process (blocking)."""
+    dp = DESKTOP_APP_PY
+    if not dp.exists():
+        dp = Path(__file__).resolve().parent / "desktop_app.py"
+    sys.path.insert(0, str(dp.parent))
+    runpy.run_path(str(dp), run_name="__main__")
+
+
+# ==========================================================================
+# Tray + agent lifecycle
+# ==========================================================================
 def _acquire_singleton() -> bool:
-    """Prevents multiple tray instances from spawning (belt & suspenders)."""
+    """Prevents multiple tray instances from spawning."""
     try:
         if LOCK_PATH.exists():
             try:
                 pid = int(LOCK_PATH.read_text().strip() or "0")
             except Exception:
                 pid = 0
-            if pid > 0:
-                # Best-effort check on Windows
-                if sys.platform.startswith("win"):
-                    try:
-                        import ctypes
-                        PROCESS_QUERY_LIMITED = 0x1000
-                        h = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED, False, pid)
-                        if h:
-                            ctypes.windll.kernel32.CloseHandle(h)
-                            return False  # another tray is running
-                    except Exception:
-                        pass
+            if pid > 0 and sys.platform.startswith("win"):
+                try:
+                    import ctypes
+                    PROCESS_QUERY_LIMITED = 0x1000
+                    h = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED, False, pid)
+                    if h:
+                        ctypes.windll.kernel32.CloseHandle(h)
+                        return False
+                except Exception:
+                    pass
         LOCK_PATH.write_text(str(os.getpid()), encoding="utf-8")
         return True
     except Exception:
@@ -119,8 +117,6 @@ class AgentManager:
         return self.proc is not None and self.proc.poll() is None
 
     def _agent_cmd(self):
-        # When frozen: relaunch self with --agent (single-file bundle).
-        # In dev: python edge_agent/agent_v2.py
         if getattr(sys, "frozen", False):
             return [sys.executable, "--agent"]
         return [sys.executable, str(AGENT_PY)]
@@ -129,16 +125,17 @@ class AgentManager:
         if self.is_running():
             return
         if not CFG_PATH.exists():
-            self._run_wizard(); return
+            return
         LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
         logf = open(LOG_PATH, "a", encoding="utf-8", buffering=1)
         logf.write(f"\n===== agent start at {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
         DETACHED = 0x00000008 if sys.platform.startswith("win") else 0
+        CREATE_NO_WINDOW = 0x08000000 if sys.platform.startswith("win") else 0
         try:
             self.proc = subprocess.Popen(
                 self._agent_cmd(),
                 stdout=logf, stderr=subprocess.STDOUT,
-                creationflags=DETACHED, cwd=str(AGENT_PY.parent) if AGENT_PY.exists() else None,
+                creationflags=DETACHED | CREATE_NO_WINDOW,
             )
         except Exception as e:
             logf.write(f"[tray] falha ao spawnar agent: {e}\n")
@@ -157,17 +154,19 @@ class AgentManager:
     def restart(self):
         self.stop(); time.sleep(0.4); self.start()
 
-    def _run_wizard(self):
-        # Same trick: --wizard mode re-uses self exe in frozen builds.
-        if getattr(sys, "frozen", False):
-            subprocess.Popen([sys.executable, "--wizard"])
-        else:
-            subprocess.Popen([sys.executable, str(WIZARD_PY)])
+
+def _spawn_dashboard():
+    """Reopens the embedded dashboard window (via subprocess so tray keeps running)."""
+    if getattr(sys, "frozen", False):
+        subprocess.Popen([sys.executable, "--dashboard"])
+    else:
+        subprocess.Popen([sys.executable, str(DESKTOP_APP_PY)])
 
 
 def tray_main():
+    """Runs the system tray icon + agent lifecycle."""
     if not _acquire_singleton():
-        print("[tray] outra instância já está rodando. Saindo.")
+        print("[tray] outra instancia ja esta rodando. Saindo.")
         return
 
     try:
@@ -175,16 +174,12 @@ def tray_main():
         from pystray import MenuItem as Item, Menu
         from PIL import Image, ImageDraw
     except Exception as e:
-        print(f"[tray] pystray/pillow indisponível: {e}")
-        # Fall through: at least launch wizard/agent so user isn't stranded.
-        if not CFG_PATH.exists():
-            run_wizard_inproc()
-        else:
-            run_agent_inproc()
+        print(f"[tray] pystray/pillow indisponivel: {e}")
+        # Fallback: just run desktop app blocking
+        run_desktop_inproc()
         return
 
-    def _make_icon(color=(34, 211, 238)) -> "Image.Image":
-        # Prefer bundled ico/png if present, else draw on the fly.
+    def _make_icon(color=(34, 211, 238)):
         for name in ("resources/jarvis.png", "jarvis.png"):
             p = RES / name
             if p.exists():
@@ -200,28 +195,11 @@ def tray_main():
         return img
 
     mgr = AgentManager()
-
-    if not CFG_PATH.exists():
-        # First run: open wizard (non-blocking so tray still shows up).
-        try:
-            if getattr(sys, "frozen", False):
-                subprocess.Popen([sys.executable, "--wizard"])
-            else:
-                subprocess.Popen([sys.executable, str(WIZARD_PY)])
-        except Exception as e:
-            print(f"[tray] erro abrindo wizard: {e}")
-    else:
+    if CFG_PATH.exists():
         mgr.start()
 
     def open_dashboard(icon, item):
-        brain = ""
-        try:
-            cfg = json.loads(CFG_PATH.read_text(encoding="utf-8"))
-            brain = cfg.get("BRAIN_URL", "")
-        except Exception:
-            pass
-        if brain:
-            webbrowser.open(brain)
+        _spawn_dashboard()
 
     def open_logs(icon, item):
         if LOG_PATH.exists():
@@ -230,11 +208,12 @@ def tray_main():
             else:
                 subprocess.Popen(["xdg-open", str(LOG_PATH)])
 
-    def run_wizard(icon, item):
-        if getattr(sys, "frozen", False):
-            subprocess.Popen([sys.executable, "--wizard"])
-        else:
-            subprocess.Popen([sys.executable, str(WIZARD_PY)])
+    def relogin(icon, item):
+        # Force re-login by wiping config and reopening desktop app
+        try: CFG_PATH.unlink(missing_ok=True)
+        except Exception: pass
+        mgr.stop()
+        _spawn_dashboard()
 
     def status_label(item=None):
         return f"Agent: {'online' if mgr.is_running() else 'offline'}"
@@ -249,13 +228,14 @@ def tray_main():
     menu = Menu(
         Item(status_label, None, enabled=False),
         Menu.SEPARATOR,
-        Item("Iniciar", lambda i, it: mgr.start()),
-        Item("Parar", lambda i, it: mgr.stop()),
-        Item("Reiniciar", lambda i, it: mgr.restart()),
+        Item("Abrir dashboard", open_dashboard, default=True),
         Menu.SEPARATOR,
-        Item("Abrir dashboard", open_dashboard),
+        Item("Iniciar agente", lambda i, it: mgr.start()),
+        Item("Parar agente", lambda i, it: mgr.stop()),
+        Item("Reiniciar agente", lambda i, it: mgr.restart()),
+        Menu.SEPARATOR,
         Item("Abrir logs", open_logs),
-        Item("Reconfigurar…", run_wizard),
+        Item("Trocar de conta / Reautenticar", relogin),
         Menu.SEPARATOR,
         Item("Sair", lambda i, it: _quit(i)),
     )
@@ -263,18 +243,43 @@ def tray_main():
     icon.run()
 
 
+def full_app():
+    """Default entry: login+dashboard window AND tray icon (parallel).
+
+    - If no config: shows the login screen; on success starts agent + tray.
+    - If config exists: opens dashboard window AND starts tray + agent.
+    """
+    # 1) Start tray in a daemon thread so it can spawn subprocesses independently.
+    t = threading.Thread(target=tray_main, daemon=True)
+    t.start()
+
+    # 2) Run the desktop_app (blocking): shows login if needed, then dashboard.
+    #    When the user closes the window, the tray keeps running.
+    try:
+        run_desktop_inproc()
+    except Exception as e:
+        print(f"[jarvis] desktop_app crashed: {e}")
+
+    # 3) When dashboard window closes, keep tray alive by joining thread.
+    try:
+        t.join()
+    except KeyboardInterrupt:
+        pass
+
+
 def main():
-    # argv dispatch — critical: prevents PyInstaller fork bomb.
     args = sys.argv[1:]
     if args:
         mode = args[0].lstrip("-").lower()
-        if mode in ("wizard", "setup"):
-            run_wizard_inproc(); return
         if mode in ("agent", "edge"):
             run_agent_inproc(); return
+        if mode in ("dashboard", "webview"):
+            run_desktop_inproc(); return
+        if mode in ("tray-only", "tray"):
+            tray_main(); return
         if mode in ("help", "h"):
-            print("Uso: JARVIS.exe [--wizard | --agent]"); return
-    tray_main()
+            print("Uso: JARVIS.exe [--agent | --dashboard | --tray-only]"); return
+    full_app()
 
 
 if __name__ == "__main__":

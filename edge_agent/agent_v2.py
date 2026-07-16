@@ -44,7 +44,7 @@ from command_handler import handle_command  # noqa: E402
 
 async def ws_loop():
     if not BRAIN_URL or not AGENT_TOKEN:
-        print("[agent] ERRO: rode pair.py primeiro (falta BRAIN_URL/AGENT_TOKEN).", file=sys.stderr)
+        print("[agent] ERRO: faca login no JARVIS Desktop primeiro (falta BRAIN_URL/AGENT_TOKEN em ~/.jarvis/agent.json).", file=sys.stderr)
         sys.exit(2)
 
     ws_url = BRAIN_URL.replace("http", "ws") + f"/api/ws/agent/{AGENT_ID}?token={AGENT_TOKEN}"

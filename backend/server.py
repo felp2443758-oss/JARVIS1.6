@@ -1431,6 +1431,34 @@ async def google_login(agent: Optional[str] = None):
     return {"auth_url": url, "state": state}
 
 
+@api_router.get("/auth/google/desktop")
+async def google_login_desktop(redirect: str, agent_name: str = "Home-PC"):
+    """OAuth Loopback Flow for desktop apps (RFC 8252).
+
+    Desktop starts a local HTTP server on 127.0.0.1:PORT and hits this endpoint.
+    We remember `redirect` in the state document; after Google callback we
+    redirect to that local URL with `?token=<JWT>&agent_token=<AT>&brain_url=X`.
+
+    Security: only http://127.0.0.1:* / http://localhost:* redirects allowed.
+    """
+    from urllib.parse import urlparse
+    from fastapi.responses import RedirectResponse
+    p = urlparse(redirect)
+    if p.scheme != "http" or p.hostname not in ("127.0.0.1", "localhost"):
+        raise HTTPException(400, "desktop redirect must be http://127.0.0.1:PORT/...")
+    state = uuid.uuid4().hex
+    url = oauth_login_url(state)
+    if not url:
+        raise HTTPException(500, "Google OAuth not configured")
+    await db.oauth_states.insert_one({
+        "state": state,
+        "agent": agent_name,
+        "desktop_redirect": redirect,
+        "ts": now_iso(),
+    })
+    return RedirectResponse(url=url)
+
+
 @api_router.get("/auth/google/callback")
 async def google_callback(code: str, state: str = ""):
     from fastapi.responses import RedirectResponse
@@ -1443,7 +1471,41 @@ async def google_callback(code: str, state: str = ""):
         raise HTTPException(400, "Falha ao obter perfil do usuário Google")
     user = await upsert_user(db, userinfo, tokens)
     session_token = issue_session_token(user)
-    # Redirect back to SPA with token in fragment (SPA reads it and stores in localStorage)
+
+    # Check if this is a desktop OAuth loopback flow
+    st = None
+    if state:
+        try:
+            st = await db.oauth_states.find_one({"state": state})
+        except Exception:
+            st = None
+    if st and st.get("desktop_redirect"):
+        # Desktop flow: redirect to local loopback with tokens
+        agent_name = st.get("agent") or "Home-PC"
+        agent_token = issue_agent_token(user["user_id"], agent_name)
+        loop_url = st["desktop_redirect"]
+        sep = "&" if "?" in loop_url else "?"
+        # Also expose brain_url so the desktop knows where to point.
+        # It's the same host that served this callback.
+        # We reconstruct from GOOGLE_REDIRECT_URI which is the public backend.
+        brain = os.environ.get("GOOGLE_REDIRECT_URI", "").split("/api/")[0]
+        redir = (
+            f"{loop_url}{sep}token={session_token}"
+            f"&agent_token={agent_token}"
+            f"&agent_name={agent_name}"
+            f"&user_id={user['user_id']}"
+            f"&email={user.get('email','')}"
+            f"&name={user.get('name','')}"
+            f"&brain_url={brain}"
+        )
+        # Clean up state doc (best-effort)
+        try:
+            await db.oauth_states.delete_one({"state": state})
+        except Exception:
+            pass
+        return RedirectResponse(url=redir)
+
+    # Web flow: redirect back to SPA with token in query
     return RedirectResponse(url=f"/?token={session_token}&connected=1")
 
 
