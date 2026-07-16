@@ -28,7 +28,7 @@ JARVIS_HOME = Path(os.getenv("JARVIS_HOME", str(Path.home() / ".jarvis")))
 JARVIS_HOME.mkdir(parents=True, exist_ok=True)
 CFG_PATH = JARVIS_HOME / "agent.json"
 
-DEFAULT_BRAIN = "https://jarvis-ai-1161.preview.emergentagent.com"
+DEFAULT_BRAIN = "https://cloud-mind-2.preview.emergentagent.com"
 
 
 def extract_token(pasted: str) -> str:

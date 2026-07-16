@@ -1,7 +1,7 @@
 // J.A.R.V.I.S. Autofill — background service worker
 // Handles config storage, vault fetches and context-menu action.
 
-const DEFAULT_BRAIN = "https://jarvis-brain-29.preview.emergentagent.com";
+const DEFAULT_BRAIN = "https://cloud-mind-2.preview.emergentagent.com";
 
 async function getConfig() {
   const { brainUrl, token } = await chrome.storage.local.get(["brainUrl", "token"]);

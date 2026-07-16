@@ -21,10 +21,13 @@ a = Analysis(
         (str(ROOT / 'edge_agent' / 'vault_client.py'), 'edge_agent'),
         (str(ROOT / 'edge_agent' / 'pair.py'), 'edge_agent'),
         (str(HERE / 'setup_wizard.py'), '.'),
+        (str(HERE / 'resources' / 'jarvis.png'), 'resources'),
+        (str(HERE / 'resources' / 'jarvis.ico'), 'resources'),
     ],
     hiddenimports=[
         'websockets', 'httpx', 'requests', 'pyautogui', 'psutil', 'docx',
         'playwright', 'playwright.async_api', 'PIL', 'PIL._imagingtk',
+        'pystray', 'pystray._win32', 'tkinter', 'tkinter.ttk',
     ],
     hookspath=[],
     hooksconfig={},
@@ -53,5 +56,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon=str(HERE / 'resources' / 'jarvis.ico'),
 )
