@@ -21,7 +21,7 @@ assistente pessoal multi-usuário estilo Iron Man com três camadas:
 Status atual: **login funcionando, dashboard parcial**. Alguns comandos do
 agent ainda com bugs — vide `BACKLOG` no fim deste guia.
 
-Repositório-fonte: **https://github.com/you555dod-bot/J.A.R.V.I.S-1.4.git**
+Repositório-fonte: **https://github.com/felp2443758-oss/JARVIS1.6.git**
 
 ## Regras de conduta (o usuário insistiu — respeite)
 
@@ -42,7 +42,7 @@ Execute na ordem:
 
 ```bash
 cd /tmp && rm -rf jarvis_repo && \
-  git clone https://github.com/you555dod-bot/J.A.R.V.I.S-1.4.git jarvis_repo
+  git clone https://github.com/felp2443758-oss/JARVIS1.6.git jarvis_repo
 
 # Preserva .env do template Emergent
 cp /app/backend/.env /tmp/backend_env_backup
